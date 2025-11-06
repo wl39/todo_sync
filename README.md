@@ -370,4 +370,68 @@ curl -H "Authorization: Bearer <JWT>" \
 
 ---
 
+## 20. 구현 개요
+
+`todo_sync` 저장소는 FastAPI 기반 백엔드 스캐폴딩을 포함한다. 주요 구조는 다음과 같다.
+
+```
+backend/
+  app/
+    api/           # REST 및 WebSocket 라우터
+    core/          # 설정, DB, 보안 유틸리티
+    db/            # 초기화 스크립트
+    events/        # 인메모리 브로드캐스트 및 WS 매니저
+    models/        # SQLAlchemy 모델(users, todos, todo_audit)
+    schemas/       # Pydantic 스키마
+    services/      # 도메인 서비스 계층
+    main.py        # FastAPI 애플리케이션 엔트리포인트
+```
+
+### 백엔드 실행 방법
+
+1. 의존성 설치
+
+   ```bash
+   cd backend
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+2. 환경 변수 설정
+
+   `.env.example`을 복사해 `.env`를 생성하고 실제 MySQL 접속 정보와 JWT 시크릿을 채운다.
+
+3. 데이터베이스 초기화
+
+   ```bash
+   python -m app.db.init_db
+   ```
+
+4. 개발 서버 실행
+
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+
+### 노출된 주요 엔드포인트
+
+| 구분 | 메서드/경로 | 설명 |
+| --- | --- | --- |
+| 인증 | `POST /auth/register` | 회원 가입 |
+| 인증 | `POST /auth/login` | OAuth2 Password Flow 로그인 |
+| 인증 | `GET /auth/me` | 현재 사용자 프로필 |
+| 투두 | `GET /todos?date=YYYY-MM-DD` | 특정 날짜 투두 목록 |
+| 투두 | `POST /todos` | 투두 생성 |
+| 투두 | `PATCH /todos/{id}` | 투두 수정 (버전 기반 낙관적 동시성) |
+| 투두 | `POST /todos/{id}/toggle` | 상태 순환 |
+| 투두 | `GET /todos/summary/month?month=YYYY-MM` | 월별 카운트 |
+| 퍼블릭 | `GET /public/{slug}/todos` | 퍼블릭 뷰 |
+| 퍼블릭 | `POST /public/{slug}/todos/{id}/toggle` | 퍼블릭 편집 |
+| 공유설정 | `PUT /sharing` | 공유 모드, 슬러그, 토큰 변경 |
+| WS | `WS /ws/user` | 개인 채널 |
+| WS | `WS /public/ws/{slug}` | 퍼블릭 채널 |
+
+모든 REST 변경은 인메모리 브로드캐스트 매니저를 통해 사용자/퍼블릭 채널에 실시간 이벤트로 발행된다. 추후 Redis Pub/Sub 연동을 위해 `events.bus` 모듈을 분리해두었다.
+
 
